@@ -41,7 +41,7 @@ internal class RaphaelRunner : IDisposable
         
         var arguments = BuildArguments(craftState, config, new List<string> { "actions" }, maxThreads);
         
-        Plugin.Log.Verbose($"[Raphael.Dalamud] Arguments / 参数: {arguments}");
+        Plugin.Log.Verbose($"Arguments / 参数: {arguments}");
         
         var processStartInfo = new ProcessStartInfo
         {
@@ -76,7 +76,7 @@ internal class RaphaelRunner : IDisposable
                                          .LastOrDefault() ?? 
                                     "Solver returned an empty or invalid macro / 求解器返回了无效的技能序列";
                 
-                Plugin.Log.Error($"[Raphael.Dalamud] Error / 错误: {relevantError.Trim()}");
+                Plugin.Log.Error($"Error / 错误: {relevantError.Trim()}");
                 return null;
             }
             
@@ -87,12 +87,12 @@ internal class RaphaelRunner : IDisposable
             if (!process.HasExited)
                 process.Kill(true);
 
-            Plugin.Log.Error("[Raphael.Dalamud] Error / 错误: Operation was canceled / 操作已取消");
+            Plugin.Log.Error("Error / 错误: Operation was canceled / 操作已取消");
             return null;
         }
         catch (Exception ex)
         {
-            Plugin.Log.Error($"[Raphael.Dalamud] Error / 错误: An unexpected error occurred / 发生异常 {ex.Message}");
+            Plugin.Log.Error($"Error / 错误: An unexpected error occurred / 发生异常 {ex.Message}");
             return null;
         }
     }

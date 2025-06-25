@@ -22,8 +22,9 @@ public sealed class Plugin : IDalamudPlugin
     internal static IChatGui                Chat { get; private set; } = null!;
     internal static IDataManager            Data { get; private set; } = null!;
     
-    private ICallGateProvider<uint>                                          startCalculationProvider = null!;
-    private ICallGateProvider<uint, Tuple<uint, string, string, List<uint>>> getStatusProvider        = null!;
+    private ICallGateProvider<uint>                                          startCalculationProvider         = null!;
+    private ICallGateProvider<uint, uint>                                    startCalculationWithRecipeProvider = null!;
+    private ICallGateProvider<uint, Tuple<uint, string, string, List<uint>>> getStatusProvider                = null!;
     
     private readonly ConcurrentDictionary<uint, CalculationRequest> activeRequests = [];
     private          uint                                           nextRequestID  = 1;
@@ -41,6 +42,7 @@ public sealed class Plugin : IDalamudPlugin
     public void Dispose()
     {
         startCalculationProvider.UnregisterFunc();
+        startCalculationWithRecipeProvider.UnregisterFunc();
         getStatusProvider.UnregisterFunc();
     }
 
@@ -48,6 +50,9 @@ public sealed class Plugin : IDalamudPlugin
     {
         startCalculationProvider = PI.GetIpcProvider<uint>("Raphael.Dalamud.StartCalculation");
         startCalculationProvider.RegisterFunc(StartCalculation);
+
+        startCalculationWithRecipeProvider = PI.GetIpcProvider<uint, uint>("Raphael.Dalamud.StartCalculationWithRecipe");
+        startCalculationWithRecipeProvider.RegisterFunc(StartCalculationWithRecipe);
 
         getStatusProvider = PI.GetIpcProvider<uint, Tuple<uint, string, string, List<uint>>>("Raphael.Dalamud.GetCalculationStatus");
         getStatusProvider.RegisterFunc(GetCalculationStatus);
@@ -77,6 +82,7 @@ public sealed class Plugin : IDalamudPlugin
                     throw new Exception("Failed to obtain game data / 获取游戏数据失败");
                 
                 var config = new RaphaelGenerationConfig();
+                Log.Debug($"Started calculation / 已启动计算, Request ID / 请求 ID: {requestID}, Recipe ID / 配方 ID: {craftState.RecipeID}");
                 await RunSolverAsync(requestID, craftState, config);
             }
             catch (Exception e)
@@ -87,11 +93,53 @@ public sealed class Plugin : IDalamudPlugin
                     failedRequest.ErrorMessage = e.Message;
                 }
                 
-                Log.Error(e, $"[Raphael.Dalamud] IPC StartCalculation: Throwing exception / IPC 启动计算时抛出异常: {e.Message}");
+                Log.Error(e, $"IPC StartCalculation: Throwing exception / IPC 启动计算时抛出异常: {e.Message}");
             }
         });
 
-        Log.Debug($"[Raphael.Dalamud] Started calculation with request ID / 已启动计算, 请求 ID: {requestID}");
+        return requestID;
+    }
+
+    /// <summary>
+    /// 启动新的计算请求，使用指定的配方ID
+    /// </summary>
+    /// <param name="recipeId">配方ID</param>
+    /// <returns>返回唯一的请求ID</returns>
+    private uint StartCalculationWithRecipe(uint recipeId)
+    {
+        var requestID = nextRequestID++;
+        var request = new CalculationRequest
+        {
+            RequestID = requestID,
+            Status    = CalculationStatus.Idle
+        };
+        
+        activeRequests[requestID] = request;
+        CleanupOldRequests();
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (GetCraftStateByRecipeID(recipeId) is not { } craftState)
+                    throw new Exception($"Failed to obtain recipe data for ID {recipeId} / 无法获取配方 ID {recipeId} 的数据");
+                
+                var config = new RaphaelGenerationConfig();
+                Log.Debug($"Started calculation with recipe ID / 已启动指定配方计算, Request ID / 请求 ID: {requestID}, Recipe ID / 配方 ID: {recipeId}");
+                await RunSolverAsync(requestID, craftState, config);
+            }
+            catch (Exception e)
+            {
+                if (activeRequests.TryGetValue(requestID, out var failedRequest))
+                {
+                    failedRequest.Status = CalculationStatus.Failed;
+                    failedRequest.ErrorMessage = e.Message;
+                }
+                
+                Log.Error(e, $"IPC StartCalculationWithRecipe: Throwing exception / IPC 启动指定配方计算时抛出异常: {e.Message}");
+            }
+        });
+
         return requestID;
     }
 
@@ -138,7 +186,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         if (!activeRequests.TryGetValue(requestId, out var request))
         {
-            Log.Warning($"[Raphael.Dalamud] Request {requestId} not found during execution / 执行期间未找到请求 {requestId}");
+            Log.Warning($"Request {requestId} not found during execution / 执行期间未找到请求 {requestId}");
             return;
         }
 
@@ -148,7 +196,7 @@ public sealed class Plugin : IDalamudPlugin
             request.ErrorMessage = string.Empty;
             request.ResultActionIDs.Clear();
             
-            Log.Debug($"[Raphael.Dalamud] Starting Raphael Solver for request {requestId} / 正在启动新一轮求解");
+            Log.Debug($"Starting Raphael Solver for request {requestId} / 正在启动新一轮求解");
 
             using var runner = new RaphaelRunner(Path.Join(PI.AssemblyLocation.DirectoryName!, "raphael-cli.exe"));
             if (await runner.GenerateSolutionAsync(craftState, generationConfig) is { Count: > 0 } actionList)
@@ -157,18 +205,18 @@ public sealed class Plugin : IDalamudPlugin
 
                 if (resultActionIds.Count == actionList.Count)
                 {
-                    request.Status = CalculationStatus.Success;
-                    request.ErrorMessage = string.Empty;
+                    request.Status          = CalculationStatus.Success;
+                    request.ErrorMessage    = string.Empty;
                     request.ResultActionIDs = resultActionIds;
                     
-                    Log.Debug($"[Raphael.Dalamud] Calculation {requestId} Finished / 求解完成");
+                    Log.Debug($"Calculation {requestId} Finished / 求解完成");
                 }
                 else
                 {
                     request.Status = CalculationStatus.Failed;
                     request.ErrorMessage = "Failed to convert one or more skill names to action IDs / 未能将一个或多个技能名称映射到技能ID";
 
-                    var message = $"[Raphael.Dalamud] Calculation {requestId} Failed / 求解失败: {request.ErrorMessage}";
+                    var message = $"Calculation {requestId} Failed / 求解失败: {request.ErrorMessage}";
                     Log.Error(message);
                     Chat.PrintError(message);
                 }
@@ -178,7 +226,7 @@ public sealed class Plugin : IDalamudPlugin
                 request.Status = CalculationStatus.Failed;
                 request.ErrorMessage = "Failed to generate a valid skill sequence / 求解器未能生成有效的技能序列";
                 
-                var message = $"[Raphael.Dalamud] Calculation {requestId} Failed / 求解失败: {request.ErrorMessage}";
+                var message = $"Calculation {requestId} Failed / 求解失败: {request.ErrorMessage}";
                 Log.Error(message);
                 Chat.PrintError(message);
             }
@@ -188,10 +236,46 @@ public sealed class Plugin : IDalamudPlugin
             request.Status = CalculationStatus.Failed;
             request.ErrorMessage = e.Message;
             
-            var message = $"[Raphael.Dalamud] Calculation {requestId} Failed / 求解失败: {request.ErrorMessage}";
+            var message = $"Calculation {requestId} Failed / 求解失败: {request.ErrorMessage}";
             Log.Error(message);
             Chat.PrintError(message);
         }
+    }
+
+    private static unsafe RaphaelCraftState? GetCraftStateByRecipeID(uint recipeId)
+    {
+        if (!LuminaGetter.TryGetRow(recipeId, out Recipe recipe))
+        {
+            Log.Warning($"Recipe not found / 未找到配方: {recipeId}");
+            return null;
+        }
+
+        var localPlayer = Control.GetLocalPlayer();
+        if (localPlayer == null)
+        {
+            Log.Warning("Local player not found / 未找到本地玩家");
+            return null;
+        }
+
+        var levelTable = GetRecipeLevelTable(recipe, localPlayer->Level);
+
+        var state = new RaphaelCraftState
+        {
+            RecipeID             = recipe.RowId,
+            ItemID               = recipe.ItemResult.RowId,
+            CraftLevel           = levelTable.ClassJobLevel,
+            CraftDurability      = RecipeDurability(recipe, levelTable),
+            CraftProgress        = RecipeDifficulty(recipe, levelTable),
+            CraftQualityMax      = RecipeMaxQuality(recipe, levelTable),
+            IsExpert             = recipe.IsExpert,
+            StatLevel            = localPlayer->Level,
+            StatCraftsmanship    = PlayerState.Instance()->Attributes[70],
+            StatControl          = PlayerState.Instance()->Attributes[71],
+            StatCP               = localPlayer->MaxCraftingPoints,
+            UnlockedManipulation = IsManipulationUnlocked((Job)localPlayer->ClassJob)
+        };
+
+        return state;
     }
     
     private static unsafe RaphaelCraftState? GetCurrentCraftState()
@@ -217,6 +301,7 @@ public sealed class Plugin : IDalamudPlugin
             UnlockedManipulation = IsManipulationUnlocked((Job)localPlayer->ClassJob)
         };
 
+        Log.Debug($"配方 ID: {state.RecipeID} / 耐久: {state.CraftDurability} / 进展: {state.CraftProgress} / 品质: {state.CraftQualityMax}");
         return state;
     }
 
@@ -235,14 +320,14 @@ public sealed class Plugin : IDalamudPlugin
         return LuminaGetter.TryGetRow(entry->RecipeId, out recipe);
     }
     
-    public static int RecipeDurability(Recipe recipe, RecipeLevelTable leveltable) => 
-        leveltable.Durability * recipe.DurabilityFactor / 100;
+    private static int RecipeDurability(Recipe recipe, RecipeLevelTable levelTable) => 
+        (int)(levelTable.Durability * (float)recipe.DurabilityFactor / 100f);
 
     private static int RecipeDifficulty(Recipe recipe, RecipeLevelTable levelTable) => 
-        levelTable.Difficulty * recipe.DifficultyFactor / 100;
+        (int)(levelTable.Difficulty * (float)recipe.DifficultyFactor / 100f);
 
     private static int RecipeMaxQuality(Recipe recipe, RecipeLevelTable levelTable) => 
-        (int)(levelTable.Quality * recipe.QualityFactor / 100);
+        (int)(levelTable.Quality * (float)recipe.QualityFactor / 100f);
 
     private static unsafe RecipeNoteRecipeEntry* GetSelectedRecipeEntry()
     {
