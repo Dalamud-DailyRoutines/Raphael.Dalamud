@@ -22,11 +22,11 @@ public sealed class Plugin : IDalamudPlugin
     internal static IChatGui                Chat { get; private set; } = null!;
     internal static IDataManager            Data { get; private set; } = null!;
     
-    private ICallGateProvider<uint>                  startCalculationProvider = null!;
-    private ICallGateProvider<uint, Tuple<uint, string, string, List<uint>>> getStatusProvider = null!;
+    private ICallGateProvider<uint>                                          startCalculationProvider = null!;
+    private ICallGateProvider<uint, Tuple<uint, string, string, List<uint>>> getStatusProvider        = null!;
     
-    private readonly ConcurrentDictionary<uint, CalculationRequest> activeRequests = new();
-    private uint nextRequestId = 1;
+    private readonly ConcurrentDictionary<uint, CalculationRequest> activeRequests = [];
+    private          uint                                           nextRequestID  = 1;
 
     public Plugin(IDalamudPluginInterface pluginInterface, IPluginLog log, IChatGui chat, IDataManager data)
     {
@@ -59,14 +59,14 @@ public sealed class Plugin : IDalamudPlugin
     /// <returns>返回唯一的请求ID</returns>
     private uint StartCalculation()
     {
-        var requestId = nextRequestId++;
-        var request = new CalculationRequest 
-        { 
-            RequestID = requestId,
-            Status = CalculationStatus.Idle
+        var requestID = nextRequestID++;
+        var request = new CalculationRequest
+        {
+            RequestID = requestID,
+            Status    = CalculationStatus.Idle
         };
         
-        activeRequests[requestId] = request;
+        activeRequests[requestID] = request;
         CleanupOldRequests();
 
         _ = Task.Run(async () =>
@@ -77,28 +77,29 @@ public sealed class Plugin : IDalamudPlugin
                     throw new Exception("Failed to obtain game data / 获取游戏数据失败");
                 
                 var config = new RaphaelGenerationConfig();
-                await RunSolverAsync(requestId, craftState, config);
+                await RunSolverAsync(requestID, craftState, config);
             }
             catch (Exception e)
             {
-                if (activeRequests.TryGetValue(requestId, out var failedRequest))
+                if (activeRequests.TryGetValue(requestID, out var failedRequest))
                 {
                     failedRequest.Status = CalculationStatus.Failed;
                     failedRequest.ErrorMessage = e.Message;
                 }
+                
                 Log.Error(e, $"[Raphael.Dalamud] IPC StartCalculation: Throwing exception / IPC 启动计算时抛出异常: {e.Message}");
             }
         });
 
-        Log.Debug($"[Raphael.Dalamud] Started calculation with request ID / 已启动计算, 请求 ID: {requestId}");
-        return requestId;
+        Log.Debug($"[Raphael.Dalamud] Started calculation with request ID / 已启动计算, 请求 ID: {requestID}");
+        return requestID;
     }
 
     /// <summary>
     /// 获取指定请求的计算状态和结果
     /// </summary>
     /// <param name="requestId">请求ID</param>
-    /// <returns>包含状态和结果的元组 (RequestId, Status, ErrorMessage, ResultActionIds)</returns>
+    /// <returns>包含状态和结果的元组 (RequestId, Status, ErrorMessage, ResultActionIDs)</returns>
     private Tuple<uint, string, string, List<uint>> GetCalculationStatus(uint requestId)
     {
         if (activeRequests.TryGetValue(requestId, out var request))
