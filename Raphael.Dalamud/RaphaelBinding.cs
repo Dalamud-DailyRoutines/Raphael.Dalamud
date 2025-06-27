@@ -85,7 +85,6 @@ namespace Raphael.Dalamud
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static unsafe void OnLog(byte* arg1, nuint arg2)
         {
-            Cancel = (bool*)arg1;
         }
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static void OnProgress(nuint obj)
@@ -120,7 +119,7 @@ namespace Raphael.Dalamud
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
         private static unsafe void OnStart(bool* obj)
         {
-
+            Cancel = obj;
         }
         public void Dispose()
         {
