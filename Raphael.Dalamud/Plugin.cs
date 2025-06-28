@@ -12,6 +12,7 @@ using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using Lumina.Excel.Sheets;
 using Raphael.Dalamud.Info;
+using Raphael.Dalamud.Utility;
 
 namespace Raphael.Dalamud;
 

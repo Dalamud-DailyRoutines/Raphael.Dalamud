@@ -1,7 +1,7 @@
 ﻿using System.Linq;
 using Lumina.Excel;
 
-namespace Raphael.Dalamud;
+namespace Raphael.Dalamud.Utility;
 
 internal static class LuminaGetter
 {
