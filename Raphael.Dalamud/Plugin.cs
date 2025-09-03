@@ -26,6 +26,7 @@ public sealed class Plugin : IDalamudPlugin
     private ICallGateProvider<uint>                                          startCalculationProvider         = null!;
     private ICallGateProvider<uint, uint>                                    startCalculationWithRecipeProvider = null!;
     private ICallGateProvider<uint, Tuple<uint, string, string, List<uint>>> getStatusProvider                = null!;
+    private ICallGateProvider<uint>                                          getCurrentRecipeIDProvider       = null!;
     
     private readonly ConcurrentDictionary<uint, CalculationRequest> activeRequests = [];
     private          uint                                           nextRequestID  = 1;
@@ -45,6 +46,7 @@ public sealed class Plugin : IDalamudPlugin
         startCalculationProvider.UnregisterFunc();
         startCalculationWithRecipeProvider.UnregisterFunc();
         getStatusProvider.UnregisterFunc();
+        getCurrentRecipeIDProvider.UnregisterFunc();
     }
 
     private void SetupIPC()
@@ -57,6 +59,9 @@ public sealed class Plugin : IDalamudPlugin
 
         getStatusProvider = PI.GetIpcProvider<uint, Tuple<uint, string, string, List<uint>>>("Raphael.Dalamud.GetCalculationStatus");
         getStatusProvider.RegisterFunc(GetCalculationStatus);
+
+        getCurrentRecipeIDProvider = PI.GetIpcProvider<uint>("Raphael.Dalamud.GetCurrentRecipeID");
+        getCurrentRecipeIDProvider.RegisterFunc(GetCurrentRecipeID);
     }
 
     /// <summary>
@@ -339,7 +344,10 @@ public sealed class Plugin : IDalamudPlugin
                    ? recipeData->Recipes + recipeData->SelectedIndex
                    : null;
     }
-    
+
+    private static uint GetCurrentRecipeID() => 
+        TryGetCurrentRecipe(out var recipe) ? recipe.RowId : 0;
+
     private static bool IsQuestUnlocked(int v) => 
         QuestManager.IsQuestComplete((uint)v);
 
