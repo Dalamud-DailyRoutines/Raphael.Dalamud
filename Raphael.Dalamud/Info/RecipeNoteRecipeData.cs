@@ -9,9 +9,9 @@ internal unsafe struct RecipeNoteRecipeData
     public static RecipeNoteRecipeData* Ptr() => 
         (RecipeNoteRecipeData*)RecipeNote.Instance()->RecipeList;
 
-    [FieldOffset(0x000)] public RecipeNoteRecipeEntry* Recipes;
-    [FieldOffset(0x008)] public int                    RecipesCount;
-    [FieldOffset(0x438)] public ushort                 SelectedIndex;
+    [FieldOffset(0x0)]   public RecipeNoteRecipeEntry* Recipes;
+    [FieldOffset(0x8)]   public int                    RecipesCount;
+    [FieldOffset(0x448)] public ushort                 SelectedIndex;
 
     public RecipeNoteRecipeEntry* FindRecipeById(uint id)
     {
