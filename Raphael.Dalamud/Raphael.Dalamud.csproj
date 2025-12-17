@@ -2,7 +2,7 @@
 
 <Project Sdk="Dalamud.CN.NET.Sdk/14.0.0">
     <PropertyGroup>
-        <Version>0.0.5.0</Version>
+        <Version>0.0.6.0</Version>
         <Description>Dalamud Wrapper for Raphael</Description>
         <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
         <IsPackable>false</IsPackable>
