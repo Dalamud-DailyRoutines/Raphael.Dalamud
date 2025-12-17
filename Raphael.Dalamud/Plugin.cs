@@ -335,15 +335,8 @@ public sealed class Plugin : IDalamudPlugin
     private static int RecipeMaxQuality(Recipe recipe, RecipeLevelTable levelTable) => 
         (int)(levelTable.Quality * (float)recipe.QualityFactor / 100f);
 
-    private static unsafe RecipeNoteRecipeEntry* GetSelectedRecipeEntry()
-    {
-        var recipeData = RecipeNoteRecipeData.Ptr();
-        return recipeData                != null &&
-               recipeData->Recipes       != null &&
-               recipeData->SelectedIndex < recipeData->RecipesCount
-                   ? recipeData->Recipes + recipeData->SelectedIndex
-                   : null;
-    }
+    private static unsafe RecipeNote.RecipeEntry* GetSelectedRecipeEntry() => 
+        RecipeNote.Instance()->RecipeList->SelectedRecipe;
 
     private static uint GetCurrentRecipeID() => 
         TryGetCurrentRecipe(out var recipe) ? recipe.RowId : 0;

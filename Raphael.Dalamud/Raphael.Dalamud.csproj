@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<Project Sdk="Dalamud.CN.NET.Sdk/13.1.0">
+<Project Sdk="Dalamud.CN.NET.Sdk/14.0.0">
     <PropertyGroup>
         <Version>0.0.5.0</Version>
         <Description>Dalamud Wrapper for Raphael</Description>
@@ -10,8 +10,7 @@
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
         <Configurations>Release;Debug</Configurations>
-        <Platforms>AnyCPU</Platforms>
-        <PlatformTarget>AnyCPU</PlatformTarget>
+        <UseWPF>true</UseWPF>
     </PropertyGroup>
     
     <ItemGroup>
@@ -19,8 +18,8 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
     </ItemGroup>
-    
-    <ItemGroup>
-      <Content Include="raphael_bindings.dll" />
-    </ItemGroup>
+
+    <PropertyGroup Condition="'$(Configuration)'=='Release'">
+        <MakeZIP>true</MakeZIP>
+    </PropertyGroup>
 </Project>
