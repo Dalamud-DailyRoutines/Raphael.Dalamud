@@ -5,10 +5,10 @@ namespace Raphael.Dalamud.Utility;
 
 internal static class LuminaGetter
 {
-    public static ExcelSheet<T> Get<T>() where T : struct, IExcelRow<T> 
+    public static ExcelSheet<T> Get<T>() where T : struct, IExcelRow<T>
         => Plugin.Data.GetExcelSheet<T>();
 
-    public static SubrowExcelSheet<T> GetSub<T>() where T : struct, IExcelSubrow<T> 
+    public static SubrowExcelSheet<T> GetSub<T>() where T : struct, IExcelSubrow<T>
         => Plugin.Data.GetSubrowExcelSheet<T>();
 
     public static bool TryGet<T>(out ExcelSheet<T> sheet) where T : struct, IExcelRow<T>

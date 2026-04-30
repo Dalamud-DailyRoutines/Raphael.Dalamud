@@ -10,50 +10,49 @@ using Raphael.Dalamud.Info;
 
 namespace Raphael.Dalamud;
 
-internal class RaphaelRunner : IDisposable
+internal sealed class RaphaelRunner : IDisposable
 {
     private readonly string cliPath;
 
     public RaphaelRunner(string cliExecutablePath)
     {
         if (!File.Exists(cliExecutablePath))
-            throw new FileNotFoundException("Raphael CLI executable not found / 未能找到 Raphael CLI 可执行文件", cliExecutablePath);
+            throw new FileNotFoundException("未能找到 Raphael CLI 可执行文件", cliExecutablePath);
 
         cliPath = cliExecutablePath;
     }
 
-    public void Dispose()
-    {
-        
-    }
+    public void Dispose() { }
 
-    internal async Task<List<string>?> GenerateSolutionAsync(
+    internal async Task<List<uint>> GenerateSolutionAsync
+    (
         RaphaelCraftState       craftState,
         RaphaelGenerationConfig config,
-        int                     maxThreads        = 0,
-        TimeSpan?               timeout           = null,
-        CancellationToken       cancellationToken = default)
+        CancellationToken       cancellationToken = default
+    )
     {
-        timeout ??= TimeSpan.FromMinutes(1);
-        
+        var timeout = TimeSpan.FromSeconds(Math.Max(config.TimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS, 1));
+
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(timeout.Value);
-        
-        var arguments = BuildArguments(craftState, config, new List<string> { "actions" }, maxThreads);
-        
-        Plugin.Log.Verbose($"Arguments / 参数: {arguments}");
-        
+        cts.CancelAfter(timeout);
+
+        var arguments = BuildArguments(craftState, config);
+
+        Plugin.Log.Verbose($"参数: {string.Join(' ', arguments)}");
+
         var processStartInfo = new ProcessStartInfo
         {
             FileName               = cliPath,
-            Arguments              = arguments,
             RedirectStandardOutput = true,
             RedirectStandardError  = true,
             UseShellExecute        = false,
             CreateNoWindow         = true,
             StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding  = Encoding.UTF8,
+            StandardErrorEncoding  = Encoding.UTF8
         };
+
+        foreach (var argument in arguments)
+            processStartInfo.ArgumentList.Add(argument);
 
         using var process = new Process();
         process.StartInfo = processStartInfo;
@@ -73,74 +72,133 @@ internal class RaphaelRunner : IDisposable
             if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
             {
                 var relevantError = error.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-                                         .LastOrDefault() ?? 
-                                    "Solver returned an empty or invalid macro / 求解器返回了无效的技能序列";
-                
-                Plugin.Log.Error($"Error / 错误: {relevantError.Trim()}");
-                return null;
+                                         .LastOrDefault() ??
+                                    "求解器返回了无效的技能序列";
+
+                throw new InvalidOperationException(relevantError.Trim());
             }
-            
-            return ParseActionsOutput(output);
+
+            var actionIDs = ParseActionIDOutput(output);
+            if (actionIDs.Count == 0)
+                throw new InvalidOperationException("求解器未能生成有效的技能序列");
+
+            return actionIDs;
         }
         catch (OperationCanceledException)
         {
             if (!process.HasExited)
                 process.Kill(true);
 
-            Plugin.Log.Error("Error / 错误: Operation was canceled / 操作已取消");
-            return null;
+            throw new TimeoutException($"求解器在 {timeout.TotalSeconds:0} 秒内未返回结果");
         }
-        catch (Exception ex)
+    }
+
+    private static List<string> BuildArguments(RaphaelCraftState craft, RaphaelGenerationConfig config)
+    {
+        var arguments = new List<string>
         {
-            Plugin.Log.Error($"Error / 错误: An unexpected error occurred / 发生异常 {ex.Message}");
-            return null;
+            "solve",
+            "--custom-recipe",
+            craft.RecipeLevelTableID.ToString(),
+            craft.CraftProgress.ToString(),
+            GetTargetQuality(craft, config).ToString(),
+            craft.CraftDurability.ToString(),
+            craft.IsExpert ? "1" : "0",
+            "--level",
+            craft.StatLevel.ToString(),
+            "--stats",
+            craft.StatCraftsmanship.ToString(),
+            craft.StatControl.ToString(),
+            craft.StatCP.ToString(),
+            "--initial-quality",
+            Math.Max(config.InitialQuality ?? craft.InitialQuality, 0).ToString(),
+            "--stellar-steady-hand",
+            GetStellarSteadyHand(craft, config).ToString()
+        };
+
+        AddConsumable(arguments, "--food",   GetFood(craft, config));
+        AddConsumable(arguments, "--potion", GetPotion(craft, config));
+
+        if (craft.UnlockedManipulation)
+            arguments.Add("--manipulation");
+        if (config.EnsureReliability.GetValueOrDefault(false))
+            arguments.Add("--adversarial");
+        if (config.BackloadProgress.GetValueOrDefault(true))
+            arguments.Add("--backload-progress");
+        if (config.AllowHeartAndSoul.GetValueOrDefault(craft.IsSpecialist))
+            arguments.Add("--heart-and-soul");
+        if (config.AllowQuickInnovation.GetValueOrDefault(craft.IsSpecialist))
+            arguments.Add("--quick-innovation");
+
+        if (config.MaxThreads is > 0)
+        {
+            arguments.Add("--threads");
+            arguments.Add(config.MaxThreads.Value.ToString());
         }
+
+        arguments.Add("--output-variables");
+        arguments.Add("action_ids");
+
+        return arguments;
     }
 
-    private static string BuildArguments(RaphaelCraftState       craft, 
-                                         RaphaelGenerationConfig config, 
-                                         IEnumerable<string>     outputVariables, 
-                                         int                     maxThreads)
+    private static RaphaelConsumable? GetFood(RaphaelCraftState craft, RaphaelGenerationConfig config)
     {
-        var argsBuilder = new StringBuilder();
+        if (config.FoodItemID is { } itemID)
+            return new RaphaelConsumable(itemID, config.FoodHQ.GetValueOrDefault());
 
-        argsBuilder.Append("solve ");
-        if (craft.ItemID != 0)
-            argsBuilder.Append($"--item-id {craft.ItemID} ");
-        else
-            argsBuilder.Append($"--recipe-id {craft.RecipeID} ");
-
-        argsBuilder.Append(craft.UnlockedManipulation ? "--manipulation " : "");
-        argsBuilder.Append($"--level {craft.StatLevel} ");
-        argsBuilder.Append($"--stats {craft.StatCraftsmanship} {craft.StatControl} {craft.StatCP} ");
-        argsBuilder.Append($"--initial {craft.InitialQuality} ");
-
-        if (config.EnsureReliability)
-            argsBuilder.Append("--adversarial ");
-        if (config.BackloadProgress)
-            argsBuilder.Append("--backload-progress ");
-        if (config.AllowHeartAndSoul)
-            argsBuilder.Append("--heart-and-soul ");
-        if (config.AllowQuickInnovation)
-            argsBuilder.Append("--quick-innovation ");
-        
-        if (maxThreads > 0)
-            argsBuilder.Append($"--threads {maxThreads} ");
-
-        argsBuilder.Append($"--output-variables {string.Join(" ", outputVariables)}");
-
-        return argsBuilder.ToString();
+        return craft.Food;
     }
 
-    private static List<string>? ParseActionsOutput(string output)
+    private static RaphaelConsumable? GetPotion(RaphaelCraftState craft, RaphaelGenerationConfig config)
     {
-        if (string.IsNullOrWhiteSpace(output)) return null;
+        if (config.PotionItemID is { } itemID)
+            return new RaphaelConsumable(itemID, config.PotionHQ.GetValueOrDefault());
 
-        var cleanedOutput = output.Replace("[", "").Replace("]", "").Replace("\"", "").Trim();
-        if (string.IsNullOrWhiteSpace(cleanedOutput)) return null;
-
-        return cleanedOutput.Split([','], StringSplitOptions.RemoveEmptyEntries)
-                            .Select(name => name.Trim())
-                            .ToList();
+        return craft.Potion;
     }
+
+    private static int GetStellarSteadyHand(RaphaelCraftState craft, RaphaelGenerationConfig config)
+    {
+        var charges = config.StellarSteadyHand ?? craft.StellarSteadyHand;
+        return Math.Clamp(charges, 0, MAX_STELLAR_STEADY_HAND);
+    }
+
+    private static int GetTargetQuality(RaphaelCraftState craft, RaphaelGenerationConfig config)
+    {
+        if (config.TargetQuality is { } targetQuality)
+            return Math.Clamp(targetQuality, 0, craft.CraftQualityMax);
+
+        return craft.TargetQuality > 0 ? craft.TargetQuality : craft.CraftQualityMax;
+    }
+
+    private static void AddConsumable(List<string> arguments, string option, RaphaelConsumable? consumable)
+    {
+        if (consumable is not { ItemID: > 0 } value)
+            return;
+
+        arguments.Add(option);
+        arguments.Add(value.IsHQ ? $"{value.ItemID},HQ" : value.ItemID.ToString());
+    }
+
+    private static List<uint> ParseActionIDOutput(string output)
+    {
+        if (string.IsNullOrWhiteSpace(output))
+            return [];
+
+        return output.Replace("[", "")
+                     .Replace("]",  "")
+                     .Replace("\"", "")
+                     .Split([','], StringSplitOptions.RemoveEmptyEntries)
+                     .Select(value => uint.TryParse(value.Trim(), out var actionID) ? actionID : 0)
+                     .Where(actionID => actionID != 0)
+                     .ToList();
+    }
+
+    #region Constants
+
+    private const int DEFAULT_TIMEOUT_SECONDS = 60;
+    private const int MAX_STELLAR_STEADY_HAND = 2;
+
+    #endregion
 }

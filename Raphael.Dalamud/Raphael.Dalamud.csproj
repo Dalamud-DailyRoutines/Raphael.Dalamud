@@ -12,7 +12,7 @@
         <Configurations>Release;Debug</Configurations>
         <UseWPF>true</UseWPF>
     </PropertyGroup>
-    
+
     <ItemGroup>
         <Content Include="raphael-cli.exe">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

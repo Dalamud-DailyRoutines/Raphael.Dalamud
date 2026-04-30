@@ -10,4 +10,4 @@ internal class CalculationRequest
     public string            ErrorMessage    { get; set; } = string.Empty;
     public List<uint>        ResultActionIDs { get; set; } = [];
     public DateTime          CreatedTime     { get; set; } = DateTime.UtcNow;
-} 
+}

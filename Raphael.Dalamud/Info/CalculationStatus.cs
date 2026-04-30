@@ -2,8 +2,8 @@
 
 internal enum CalculationStatus
 {
-    Idle, 
-    Calculating, 
-    Success, 
+    Idle,
+    Calculating,
+    Success,
     Failed
 }

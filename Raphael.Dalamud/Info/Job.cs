@@ -3,217 +3,217 @@
 internal enum Job : byte
 {
     /// <summary>
-    /// Adventurer 
+    ///     Adventurer
     /// </summary>
     ADV = 0,
 
     /// <summary>
-    /// Gladiator 
+    ///     Gladiator
     /// </summary>
     GLA = 1,
 
     /// <summary>
-    /// Pugilist 
+    ///     Pugilist
     /// </summary>
     PGL = 2,
 
     /// <summary>
-    /// Marauder 
+    ///     Marauder
     /// </summary>
     MRD = 3,
 
     /// <summary>
-    /// Lancer 
+    ///     Lancer
     /// </summary>
     LNC = 4,
 
     /// <summary>
-    /// Archer 
+    ///     Archer
     /// </summary>
     ARC = 5,
 
     /// <summary>
-    /// Conjurer 
+    ///     Conjurer
     /// </summary>
     CNJ = 6,
 
     /// <summary>
-    /// Thaumaturge
+    ///     Thaumaturge
     /// </summary>
     THM = 7,
 
     /// <summary>
-    /// Carpenter
+    ///     Carpenter
     /// </summary>
     CRP = 8,
 
     /// <summary>
-    /// Blacksmith
+    ///     Blacksmith
     /// </summary>
     BSM = 9,
 
     /// <summary>
-    /// Armorer
+    ///     Armorer
     /// </summary>
     ARM = 10,
 
     /// <summary>
-    /// Goldsmith
+    ///     Goldsmith
     /// </summary>
     GSM = 11,
 
     /// <summary>
-    /// Leatherworker
+    ///     Leatherworker
     /// </summary>
     LTW = 12,
 
     /// <summary>
-    /// Weaver
+    ///     Weaver
     /// </summary>
     WVR = 13,
 
     /// <summary>
-    /// Alchemist
+    ///     Alchemist
     /// </summary>
     ALC = 14,
 
     /// <summary>
-    /// Culinarian
+    ///     Culinarian
     /// </summary>
     CUL = 15,
 
     /// <summary>
-    /// Miner
+    ///     Miner
     /// </summary>
     MIN = 16,
 
     /// <summary>
-    /// Botanist
+    ///     Botanist
     /// </summary>
     BTN = 17,
 
     /// <summary>
-    /// Fisher
+    ///     Fisher
     /// </summary>
     FSH = 18,
 
     /// <summary>
-    /// Paladin 
+    ///     Paladin
     /// </summary>
     PLD = 19,
 
     /// <summary>
-    /// Monk 
+    ///     Monk
     /// </summary>
     MNK = 20,
 
     /// <summary>
-    /// Warrior 
+    ///     Warrior
     /// </summary>
     WAR = 21,
 
     /// <summary>
-    /// Dragoon 
+    ///     Dragoon
     /// </summary>
     DRG = 22,
 
     /// <summary>
-    /// Bard 
+    ///     Bard
     /// </summary>
     BRD = 23,
 
     /// <summary>
-    /// WhiteMage 
+    ///     WhiteMage
     /// </summary>
     WHM = 24,
 
     /// <summary>
-    /// BlackMage
+    ///     BlackMage
     /// </summary>
     BLM = 25,
 
     /// <summary>
-    /// Arcanist 
+    ///     Arcanist
     /// </summary>
     ACN = 26,
 
     /// <summary>
-    /// Summoner 
+    ///     Summoner
     /// </summary>
     SMN = 27,
 
     /// <summary>
-    /// Scholar 
+    ///     Scholar
     /// </summary>
     SCH = 28,
 
     /// <summary>
-    /// Rogue 
+    ///     Rogue
     /// </summary>
     ROG = 29,
 
     /// <summary>
-    /// Ninja 
+    ///     Ninja
     /// </summary>
     NIN = 30,
 
     /// <summary>
-    /// Machinist 
+    ///     Machinist
     /// </summary>
     MCH = 31,
 
     /// <summary>
-    /// DarkKnight 
+    ///     DarkKnight
     /// </summary>
     DRK = 32,
 
     /// <summary>
-    /// Astrologian 
+    ///     Astrologian
     /// </summary>
     AST = 33,
 
     /// <summary>
-    /// Samurai 
+    ///     Samurai
     /// </summary>
     SAM = 34,
 
     /// <summary>
-    /// RedMage 
+    ///     RedMage
     /// </summary>
     RDM = 35,
 
     /// <summary>
-    /// BlueMage 
+    ///     BlueMage
     /// </summary>
     BLU = 36,
 
     /// <summary>
-    /// Gunbreaker 
+    ///     Gunbreaker
     /// </summary>
     GNB = 37,
 
     /// <summary>
-    /// Dancer 
+    ///     Dancer
     /// </summary>
     DNC = 38,
 
     /// <summary>
-    /// Reaper 
+    ///     Reaper
     /// </summary>
     RPR = 39,
 
     /// <summary>
-    /// Sage 
+    ///     Sage
     /// </summary>
     SGE = 40,
 
     /// <summary>
-    /// Viper 
+    ///     Viper
     /// </summary>
     VPR = 41,
 
     /// <summary>
-    /// Pictomancer 
+    ///     Pictomancer
     /// </summary>
-    PCT = 42,
+    PCT = 42
 }
