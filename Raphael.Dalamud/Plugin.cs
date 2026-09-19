@@ -559,7 +559,7 @@ public sealed class Plugin : IDalamudPlugin
 
     #region Constants
 
-    private const int  DEFAULT_MAX_STELLAR_STEADY_HAND = 2;
+    private const int  DEFAULT_MAX_STELLAR_STEADY_HAND = 3;
     private const int  DUTY_ACTION_SLOT_COUNT          = 2;
     private const int  HQ_STATUS_PARAM_OFFSET          = 10000;
     private const int  MAX_INGREDIENT_COUNT            = 6;

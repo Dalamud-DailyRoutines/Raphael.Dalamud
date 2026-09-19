@@ -198,7 +198,7 @@ internal sealed class RaphaelRunner : IDisposable
     #region Constants
 
     private const int DEFAULT_TIMEOUT_SECONDS = 60;
-    private const int MAX_STELLAR_STEADY_HAND = 2;
+    private const int MAX_STELLAR_STEADY_HAND = 3;
 
     #endregion
 }
