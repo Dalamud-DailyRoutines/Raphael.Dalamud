@@ -362,9 +362,11 @@ public sealed class Plugin : IDalamudPlugin
     {
         foreach (var row in LuminaGetter.Get<HWDCrafterSupply>())
         {
-            var supply = row.HWDCrafterSupplyParams.FirstOrDefault(x => x.ItemTradeIn.RowId == recipe.ItemResult.RowId);
-            if (supply.ItemTradeIn.RowId == recipe.ItemResult.RowId)
-                return supply.HighCollectableRating * 10;
+            foreach (var supply in row.HWDCrafterSupplyParams)
+            {
+                if (supply.ItemTradeIn.RowId == recipe.ItemResult.RowId)
+                    return supply.HighCollectableRating * 10;
+            }
         }
 
         return null;
@@ -385,9 +387,11 @@ public sealed class Plugin : IDalamudPlugin
     {
         foreach (var row in LuminaGetter.Get<SharlayanCraftWorksSupply>())
         {
-            var supply = row.Item.FirstOrDefault(x => x.ItemId.RowId == recipe.ItemResult.RowId);
-            if (supply.ItemId.RowId == recipe.ItemResult.RowId)
-                return supply.CollectabilityHigh * 10;
+            foreach (var supply in row.Item)
+            {
+                if (supply.ItemId.RowId == recipe.ItemResult.RowId)
+                    return supply.CollectabilityHigh * 10;
+            }
         }
 
         return null;
@@ -397,9 +401,13 @@ public sealed class Plugin : IDalamudPlugin
     {
         foreach (var row in LuminaGetter.Get<BankaCraftWorksSupply>())
         {
-            var supply = row.Item.FirstOrDefault(x => x.ItemId.RowId == recipe.ItemResult.RowId);
-            if (supply.ItemId.RowId == recipe.ItemResult.RowId && supply.Collectability.IsValid)
-                return supply.Collectability.Value.CollectabilityHigh * 10;
+            foreach (var supply in row.Item)
+            {
+                if (supply.ItemId.RowId != recipe.ItemResult.RowId)
+                    continue;
+                if (supply.ItemId.IsValid && supply.Collectability.IsValid)
+                    return supply.Collectability.Value.CollectabilityHigh * 10;
+            }
         }
 
         return null;
