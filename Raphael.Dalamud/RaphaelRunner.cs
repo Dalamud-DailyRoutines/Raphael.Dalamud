@@ -31,7 +31,8 @@ internal sealed class RaphaelRunner : IDisposable
         CancellationToken       cancellationToken = default
     )
     {
-        var timeout = TimeSpan.FromSeconds(Math.Max(config.TimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS, 1));
+        var timeout = TimeSpan.FromSeconds
+            (Math.Clamp(config.TimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS, MIN_TIMEOUT_SECONDS, MAX_TIMEOUT_SECONDS));
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(timeout);
@@ -199,6 +200,8 @@ internal sealed class RaphaelRunner : IDisposable
 
     private const int DEFAULT_TIMEOUT_SECONDS = 60;
     private const int MAX_STELLAR_STEADY_HAND = 3;
+    private const int MAX_TIMEOUT_SECONDS     = 300;
+    private const int MIN_TIMEOUT_SECONDS     = 1;
 
     #endregion
 }

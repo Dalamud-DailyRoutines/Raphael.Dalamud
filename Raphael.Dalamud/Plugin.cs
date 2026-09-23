@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Ipc;
@@ -30,8 +31,10 @@ public sealed class Plugin : IDalamudPlugin
     private ICallGateProvider<uint, Tuple<uint, string, string, List<uint>>> getStatusProvider                  = null!;
     private ICallGateProvider<uint>                                          getCurrentRecipeIDProvider         = null!;
 
-    private readonly ConcurrentDictionary<uint, CalculationRequest> activeRequests = [];
-    private          uint                                           nextRequestID  = 1;
+    private readonly ConcurrentDictionary<uint, CalculationRequest> activeRequests      = [];
+    private          int                                            nextRequestID;
+    private          int                                            runningSolverCount;
+    private          long                                           lastCleanupTickCount;
 
     public Plugin(IDalamudPluginInterface pluginInterface, IPluginLog log, IChatGui chat, IDataManager data)
     {
@@ -90,15 +93,24 @@ public sealed class Plugin : IDalamudPlugin
 
     private uint QueueCalculation(uint recipeId, string configJson, bool useCurrentRecipe)
     {
-        var requestID = nextRequestID++;
-        var request = new CalculationRequest
-        {
-            RequestID = requestID,
-            Status    = CalculationStatus.Idle
-        };
+        CleanupExpiredRequests();
 
-        activeRequests[requestID] = request;
-        CleanupOldRequests();
+        if (activeRequests.Count >= MAX_TRACKED_REQUESTS)
+        {
+            Log.Warning("待处理计算请求已达上限, 已拒绝新的计算请求");
+            return (uint)Interlocked.Increment(ref nextRequestID);
+        }
+
+        if (Interlocked.Increment(ref runningSolverCount) > MaxConcurrentSolvers)
+        {
+            Interlocked.Decrement(ref runningSolverCount);
+
+            Log.Warning("正在进行的计算已达上限, 已拒绝新的计算请求");
+            return (uint)Interlocked.Increment(ref nextRequestID);
+        }
+
+        var request   = RegisterRequest();
+        var requestID = request.RequestID;
 
         _ = Task.Run
         (async () =>
@@ -126,10 +138,31 @@ public sealed class Plugin : IDalamudPlugin
 
                     Log.Error(e, $"IPC 启动计算时抛出异常: {e.Message}");
                 }
+                finally
+                {
+                    Interlocked.Decrement(ref runningSolverCount);
+                }
             }
         );
 
         return requestID;
+    }
+
+    private CalculationRequest RegisterRequest()
+    {
+        var request = new CalculationRequest
+        {
+            Status = CalculationStatus.Idle
+        };
+
+        while (true)
+        {
+            var requestID = (uint)Interlocked.Increment(ref nextRequestID);
+            request.RequestID = requestID;
+
+            if (activeRequests.TryAdd(requestID, request))
+                return request;
+        }
     }
 
     /// <summary>
@@ -159,16 +192,17 @@ public sealed class Plugin : IDalamudPlugin
         );
     }
 
-    private void CleanupOldRequests()
+    private void CleanupExpiredRequests()
     {
-        var cutoffTime = DateTime.UtcNow.AddMinutes(-5);
-        var keysToRemove = activeRequests
-                           .Where(kvp => kvp.Value.CreatedTime < cutoffTime)
-                           .Select(kvp => kvp.Key)
-                           .ToList();
+        var now = Environment.TickCount64;
+        if (Interlocked.Exchange(ref lastCleanupTickCount, now) + CLEANUP_INTERVAL_MILLISECONDS > now)
+            return;
 
-        foreach (var key in keysToRemove)
-            activeRequests.TryRemove(key, out _);
+        var cutoffTime = DateTime.UtcNow - RequestRetention;
+
+        foreach (var pair in activeRequests)
+            if (pair.Value.CreatedTime < cutoffTime)
+                activeRequests.TryRemove(pair.Key, out _);
     }
 
     private async Task RunSolverAsync(uint requestId, RaphaelCraftState craftState, RaphaelGenerationConfig generationConfig)
@@ -567,15 +601,20 @@ public sealed class Plugin : IDalamudPlugin
 
     #region Constants
 
+    private const int  CLEANUP_INTERVAL_MILLISECONDS   = 1000;
     private const int  DEFAULT_MAX_STELLAR_STEADY_HAND = 3;
     private const int  DUTY_ACTION_SLOT_COUNT          = 2;
     private const int  HQ_STATUS_PARAM_OFFSET          = 10000;
     private const int  MAX_INGREDIENT_COUNT            = 6;
+    private const int  MAX_TRACKED_REQUESTS            = 1024;
     private const uint BASE_HEART_AND_SOUL_ID          = 100419;
     private const uint BASE_QUICK_INNOVATION_ID        = 100459;
     private const uint FOOD_STATUS_ID                  = 48;
     private const uint POTION_STATUS_ID                = 49;
     private const uint STELLAR_STEADY_HAND_ID          = 46843;
+
+    private static readonly int      MaxConcurrentSolvers = Math.Max(Environment.ProcessorCount / 2, 1);
+    private static readonly TimeSpan RequestRetention     = TimeSpan.FromMinutes(5);
 
     #endregion
 }
