@@ -25,11 +25,11 @@ public sealed class Plugin : IDalamudPlugin
     internal static IChatGui                Chat { get; private set; } = null!;
     internal static IDataManager            Data { get; private set; } = null!;
 
-    private ICallGateProvider<uint>                                          startCalculationProvider           = null!;
-    private ICallGateProvider<uint, uint>                                    startCalculationWithRecipeProvider = null!;
-    private ICallGateProvider<uint, string, uint>                            startCalculationWithConfigProvider = null!;
-    private ICallGateProvider<uint, Tuple<uint, string, string, List<uint>>> getStatusProvider                  = null!;
-    private ICallGateProvider<uint>                                          getCurrentRecipeIDProvider         = null!;
+    private ICallGateProvider<uint>                                                   startCalculationProvider           = null!;
+    private ICallGateProvider<uint, uint>                                             startCalculationWithRecipeProvider = null!;
+    private ICallGateProvider<uint, string, uint>                                     startCalculationWithConfigProvider = null!;
+    private ICallGateProvider<uint, Tuple<uint, string, string, List<uint>, int, int>> getStatusProvider                  = null!;
+    private ICallGateProvider<uint>                                                   getCurrentRecipeIDProvider         = null!;
 
     private readonly ConcurrentDictionary<uint, CalculationRequest> activeRequests      = [];
     private          int                                            nextRequestID;
@@ -66,7 +66,7 @@ public sealed class Plugin : IDalamudPlugin
         startCalculationWithConfigProvider = PI.GetIpcProvider<uint, string, uint>("Raphael.Dalamud.StartCalculationWithConfig");
         startCalculationWithConfigProvider.RegisterFunc(StartCalculationWithConfig);
 
-        getStatusProvider = PI.GetIpcProvider<uint, Tuple<uint, string, string, List<uint>>>("Raphael.Dalamud.GetCalculationStatus");
+        getStatusProvider = PI.GetIpcProvider<uint, Tuple<uint, string, string, List<uint>, int, int>>("Raphael.Dalamud.GetCalculationStatus");
         getStatusProvider.RegisterFunc(GetCalculationStatus);
 
         getCurrentRecipeIDProvider = PI.GetIpcProvider<uint>("Raphael.Dalamud.GetCurrentRecipeID");
@@ -169,26 +169,30 @@ public sealed class Plugin : IDalamudPlugin
     ///     获取指定请求的计算状态和结果
     /// </summary>
     /// <param name="requestId">请求ID</param>
-    /// <returns>包含状态和结果的元组 (RequestId, Status, ErrorMessage, ResultActionIDs)</returns>
-    private Tuple<uint, string, string, List<uint>> GetCalculationStatus(uint requestId)
+    /// <returns>包含状态和结果的元组 (RequestId, Status, ErrorMessage, ResultActionIDs, ResultProgress, ResultQuality)</returns>
+    private Tuple<uint, string, string, List<uint>, int, int> GetCalculationStatus(uint requestId)
     {
         if (activeRequests.TryGetValue(requestId, out var request))
         {
-            return new Tuple<uint, string, string, List<uint>>
+            return new Tuple<uint, string, string, List<uint>, int, int>
             (
                 request.RequestID,
                 request.Status.ToString(),
                 request.ErrorMessage,
-                request.ResultActionIDs
+                request.ResultActionIDs,
+                request.ResultProgress,
+                request.ResultQuality
             );
         }
 
-        return new Tuple<uint, string, string, List<uint>>
+        return new Tuple<uint, string, string, List<uint>, int, int>
         (
             requestId,
             nameof(CalculationStatus.Failed),
             "Request not found / 未找到指定请求",
-            []
+            [],
+            0,
+            0
         );
     }
 
@@ -222,15 +226,17 @@ public sealed class Plugin : IDalamudPlugin
             Log.Debug($"Starting Raphael Solver for request {requestId} / 正在启动新一轮求解");
 
             using var runner          = new RaphaelRunner(Path.Join(PI.AssemblyLocation.DirectoryName!, "raphael-cli.exe"));
-            var       actionIDs       = await runner.GenerateSolutionAsync(craftState, generationConfig);
-            var       resultActionIds = actionIDs.Select(ActionMap.GetActionID).Where(id => id != 0).ToList();
+            var       solution        = await runner.GenerateSolutionAsync(craftState, generationConfig);
+            var       resultActionIds = solution.ActionIDs.Select(ActionMap.GetActionID).Where(id => id != 0).ToList();
 
-            if (resultActionIds.Count != actionIDs.Count)
+            if (resultActionIds.Count != solution.ActionIDs.Count)
                 throw new InvalidOperationException("未能将一个或多个技能 ID 映射到当前职业技能");
 
             request.Status          = CalculationStatus.Success;
             request.ErrorMessage    = string.Empty;
             request.ResultActionIDs = resultActionIds;
+            request.ResultProgress  = solution.Progress;
+            request.ResultQuality   = solution.Quality;
 
             Log.Debug($"Calculation {requestId} Finished / 求解完成");
         }

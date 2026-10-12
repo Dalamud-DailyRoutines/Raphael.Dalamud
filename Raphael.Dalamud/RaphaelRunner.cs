@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Raphael.Dalamud.Info;
@@ -24,7 +25,7 @@ internal sealed class RaphaelRunner : IDisposable
 
     public void Dispose() { }
 
-    internal async Task<List<uint>> GenerateSolutionAsync
+    internal async Task<RaphaelSolutionResult> GenerateSolutionAsync
     (
         RaphaelCraftState       craftState,
         RaphaelGenerationConfig config,
@@ -79,11 +80,11 @@ internal sealed class RaphaelRunner : IDisposable
                 throw new InvalidOperationException(relevantError.Trim());
             }
 
-            var actionIDs = ParseActionIDOutput(output);
-            if (actionIDs.Count == 0)
+            var solution = ParseSolutionOutput(output);
+            if (solution.ActionIDs.Count == 0)
                 throw new InvalidOperationException("求解器未能生成有效的技能序列");
 
-            return actionIDs;
+            return solution;
         }
         catch (OperationCanceledException)
         {
@@ -139,6 +140,9 @@ internal sealed class RaphaelRunner : IDisposable
 
         arguments.Add("--output-variables");
         arguments.Add("action_ids");
+        arguments.Add("final_state");
+        arguments.Add("--output-field-separator");
+        arguments.Add(OUTPUT_FIELD_SEPARATOR);
 
         return arguments;
     }
@@ -182,6 +186,33 @@ internal sealed class RaphaelRunner : IDisposable
         arguments.Add(value.IsHQ ? $"{value.ItemID},HQ" : value.ItemID.ToString());
     }
 
+    private static RaphaelSolutionResult ParseSolutionOutput(string output)
+    {
+        var fields = output.Split(OUTPUT_FIELD_SEPARATOR, StringSplitOptions.None);
+
+        if (fields.Length < OUTPUT_FIELD_COUNT)
+            throw new InvalidOperationException("求解器返回了无效的输出");
+
+        var finalState = fields[FINAL_STATE_FIELD_INDEX];
+
+        return new RaphaelSolutionResult
+        {
+            ActionIDs = ParseActionIDOutput(fields[ACTION_IDS_FIELD_INDEX]),
+            Progress  = ParseFinalStateValue(finalState, ProgressPattern),
+            Quality   = ParseFinalStateValue(finalState, QualityPattern)
+        };
+    }
+
+    private static int ParseFinalStateValue(string finalState, Regex pattern)
+    {
+        var match = pattern.Match(finalState);
+
+        if (!match.Success)
+            throw new InvalidOperationException("求解器未能返回最终的进度与品质");
+
+        return int.Parse(match.Groups[1].Value);
+    }
+
     private static List<uint> ParseActionIDOutput(string output)
     {
         if (string.IsNullOrWhiteSpace(output))
@@ -198,10 +229,17 @@ internal sealed class RaphaelRunner : IDisposable
 
     #region Constants
 
-    private const int DEFAULT_TIMEOUT_SECONDS = 60;
-    private const int MAX_STELLAR_STEADY_HAND = 3;
-    private const int MAX_TIMEOUT_SECONDS     = 300;
-    private const int MIN_TIMEOUT_SECONDS     = 1;
+    private const int    ACTION_IDS_FIELD_INDEX    = 0;
+    private const int    DEFAULT_TIMEOUT_SECONDS   = 60;
+    private const int    FINAL_STATE_FIELD_INDEX   = 1;
+    private const int    MAX_STELLAR_STEADY_HAND   = 3;
+    private const int    MAX_TIMEOUT_SECONDS       = 300;
+    private const int    MIN_TIMEOUT_SECONDS       = 1;
+    private const int    OUTPUT_FIELD_COUNT        = 2;
+    private const string OUTPUT_FIELD_SEPARATOR    = "|";
+
+    private static readonly Regex ProgressPattern = new(@"\bprogress:\s*(\d+)", RegexOptions.Compiled);
+    private static readonly Regex QualityPattern  = new(@"\bquality:\s*(\d+)", RegexOptions.Compiled);
 
     #endregion
 }
